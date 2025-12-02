@@ -19,7 +19,7 @@ from scipy.stats import norm
 ### Marginal models ###
 
 # PH
-def surv_ph_marg(t, lambda_=0.1):
+def surv_ph_marg(t, lambda_=0.5):
     """
     Marginal proportional hazards (PH) survival function.
 
@@ -37,7 +37,7 @@ def surv_ph_marg(t, lambda_=0.1):
     """
     return np.exp(-lambda_ * np.asarray(t))
 
-def sinv_ph_marg(u, lambda_=0.1):
+def sinv_ph_marg(u, lambda_=0.5):
     """
     Inverse CDF for the marginal PH model.
 
@@ -150,7 +150,7 @@ def f_x(x, r):
 
 
 # PH
-def surv_ph_cond(t, x, r = 0.5, lambda_=0.1):
+def surv_ph_cond(t, x, r = 0.5, lambda_=0.5):
     """
     Conditional survival function for PH model.
 
@@ -172,7 +172,7 @@ def surv_ph_cond(t, x, r = 0.5, lambda_=0.1):
     """
     return np.exp(-lambda_ * np.exp(f_x(x, r)) * np.asarray(t))
 
-def sinv_ph_cond(u, x, r = 0.5, lambda_=0.1):
+def sinv_ph_cond(u, x, r = 0.5, lambda_=0.5):
     """
     Inverse conditional CDF for PH model.
 
@@ -384,7 +384,7 @@ def convert_lr(t, cens):
 ### Simulate data ###
 
 def sim_ic_marg(n_lc=0, n_rc=0, n_ic=0, n_uc=0, tau_lc=1.0, tau_rc=50.0,
-                c_ic=5.0, d_ic=5.0, k_ic=30, sim_model="PH", lambda_=0.1,
+                c_ic=5.0, d_ic=5.0, k_ic=30, sim_model="PH", lambda_=0.5,
                 seed=None):
     """
     Simulate marginally distributed survival data under censoring.
@@ -469,7 +469,7 @@ def sim_ic_marg(n_lc=0, n_rc=0, n_ic=0, n_uc=0, tau_lc=1.0, tau_rc=50.0,
 
 def sim_ic_cond(n_lc=0, n_rc=0, n_ic=0, n_uc=0, p_cov=2, r_cov=0.5, tau_lc=5.0,
                 tau_rc=50.0, c_ic=5.0, d_ic=5.0, k_ic=20, sim_model="PH",
-                lambda_=0.1, seed=3):
+                lambda_=0.5, seed=3):
     """
     Simulate conditional survival data given covariates.
 

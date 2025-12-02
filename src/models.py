@@ -194,7 +194,7 @@ class SCENIC(nn.Module):
         gen_hidden: int = 100,
         phi_hidden: int = 1000,
         gen_lr: float = 1e-4,
-        phi_lr: float = 1e-5,
+        phi_lr: float = 1e-5
     ):
         super(SCENIC, self).__init__()
 
@@ -216,18 +216,32 @@ class SCENIC(nn.Module):
         self.temp = temp
         self.temp_decay = temp_decay
 
+        # Initialize variable selection components
+        self.vs_Xidx = torch.ones(self.p) > 0
+        self.vs_mask = ~self.vs_Xidx
+
+        self.informative_check = False
+        self.epoch_check = False
+        self.selected = False
+
         # Initialize generator
-        self.generator = generator(self.p_aux + self.p, gen_hidden, 1).to(device)
         self.generator_loss = 0.0
+        self.gen_lr = gen_lr
+        self.generator = generator(self.p_aux + self.p, gen_hidden, 1).to(device)
         self.generator_optimizer = torch.optim.Adam(self.generator.parameters(),
-                                                    lr=gen_lr,
-                                                    betas=(0.9, 0.999))
+                                                    lr = self.gen_lr,
+                                                    betas = (0.9, 0.999))
 
         # Initialize phi function
-        self.phi = phi(self.p, phi_hidden, 1).to(device)
         self.phi_loss = 0.0
+        self.phi_lr = phi_lr
+        self.phi = phi(self.p, phi_hidden, 1).to(device)
+        # self.phi_optimizer = torch.optim.Adam(self.phi.parameters(),
+        #                                       lr = self.phi_lr,
+        #                                       betas = (0.9, 0.999))
         self.phi_optimizer = torch.optim.SGD(self.phi.parameters(),
-                                             lr=phi_lr, momentum=0.9)
+                                             lr = self.phi_lr,
+                                             momentum=0.9)
         
         # Set loss function
         self.loss_func = nn.MSELoss()
@@ -252,7 +266,8 @@ class SCENIC(nn.Module):
         torch.Tensor
             Estimated CDF values of shape (N, m).
         """
-        U_gen = 2 * torch.rand(self.batch_size * self.n_aux, self.p_aux, device=self.device) - 1
+        U_gen = 2 * torch.rand(self.batch_size * self.n_aux, self.p_aux,
+                               device=self.device) - 1
         gen = self.generator(U_gen, X).view(self.batch_size, self.n_aux)
         diff = inner[None, None, :] - gen[:, :, None]
         F_gen = torch.sigmoid(diff / self.temp).mean(dim=1)
@@ -328,3 +343,35 @@ class SCENIC(nn.Module):
         self.generator_optimizer.zero_grad()
         self.generator_loss.backward()
         self.generator_optimizer.step()
+
+    def check_informative_weights(self):
+        # Check for informative signals before variable selection
+        w1 = torch.matmul(torch.abs(self.generator.gen2.weight.data),
+                          torch.abs(self.generator.gen1.weight.data))
+        w2 = torch.matmul(torch.abs(self.generator.gen3.weight.data), w1)
+        w3 = torch.matmul(torch.abs(self.generator.gen4.weight.data), w2)
+
+        aux_signal_mean = torch.mean(w3.view(-1)[:self.p_aux])
+        X_signal_mean = torch.mean(w3.view(-1)[self.p_aux:])
+        return (X_signal_mean > aux_signal_mean).item()
+
+    def variable_selection(self):
+        # Perform variable selection
+        w1 = torch.matmul(torch.abs(self.generator.gen2.weight.data),
+                          torch.abs(self.generator.gen1.weight.data))
+        w2 = torch.matmul(torch.abs(self.generator.gen3.weight.data), w1)
+        w3 = torch.matmul(torch.abs(self.generator.gen4.weight.data), w2)
+
+        aux_threshold = torch.mean(w3.view(-1)[:self.p_aux])
+        X_signal = w3.view(-1)[self.p_aux:]
+        new_vs_Xidx = (X_signal > aux_threshold).detach().cpu().numpy()
+        new_vs_mask = ~new_vs_Xidx
+
+        with torch.no_grad():
+            self.generator.gen1.weight[:, self.p_aux:][:, new_vs_mask] = 0
+            self.generator_optimizer = torch.optim.Adam(self.generator.parameters(),
+                                                        lr = self.gen_lr,
+                                                        betas = (0.9, 0.999))
+
+        self.vs_Xidx = new_vs_Xidx
+        self.vs_mask = new_vs_mask

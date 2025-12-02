@@ -13,8 +13,9 @@ import numpy as np
 import random
 
 from models import SCENIC
+from print_results import print_results
 
-def train(model, phi_steps: int = 1, gen_steps: int = 1):
+def train_epoch(model, phi_steps: int = 1, gen_steps: int = 1):
     """
     Run one training epoch for the SCENIC model.
 
@@ -90,3 +91,83 @@ def train(model, phi_steps: int = 1, gen_steps: int = 1):
 
     # Decay temperature parameter if applicable
     model.temp = max(0.01, model.temp * model.temp_decay)
+
+
+def train(model, vs=False, total_epochs=100, after_vs_epochs=20,
+          phi_steps=1, gen_steps=1, sim_model="PH", n_plot=6, ub_plot=50,
+          steps_plot=500, n_gen=2000):
+    """
+    Train model and visualize progress across epochs.
+
+    Parameters
+    ----------
+    model : SCENIC
+        An initialized SCENIC model instance with tensors and optimizers set.
+    epochs : int
+        Number of training epochs.
+    phi_steps, gen_steps : int
+        Number of updates per mini-batch iteration for phi and generator networks.
+    sim_model : {"PH", "PO", "AFT"}
+        Model type for visualizing training results.
+    n_plot, ub_plot, steps_plot, n_gen : int
+        Plotting parameters for visualizing training results.
+
+    Notes
+    -----
+    - The model alternates between phi- and generator-updates via `train`.
+    - Plots are generated every 10 epochs using `print_results`.
+    """
+    # Train model across epochs
+    epoch = 0
+    max_epoch = total_epochs
+    n_vs = 0
+
+    while epoch < max_epoch:
+        epoch += 1
+
+        # Check informative weights before variable selection
+        if (vs and not model.informative_check and epoch > 5):
+            model.informative_check = model.check_informative_weights()
+        
+        # Check epoch condition for variable selection
+        if (vs and epoch >= total_epochs):
+            model.epoch_check = True
+
+        # Perform variable selection if conditions are met
+        model.selected = model.epoch_check or model.informative_check
+
+        if model.selected and n_vs == 0:
+            model.variable_selection()
+            max_epoch = epoch + after_vs_epochs
+            n_vs += 1
+
+        # Train for one epoch
+        train_epoch(model, phi_steps=phi_steps, gen_steps=gen_steps)
+
+        # Apply variable selection mask to generator weights
+        if vs and model.selected:
+            with torch.no_grad():
+                model.generator.gen1.weight[:, model.p_aux:][:, model.vs_mask] = 0
+
+        # Print results every 10 epochs
+        if epoch % 10 == 0:
+            # Print current training losses and plot results
+            print_results(model, epoch=epoch, sim_model=sim_model,
+                          n_plot=n_plot, ub_plot=ub_plot, steps_plot=steps_plot,
+                          n_gen=n_gen)
+            
+            # Print variable selection diagnostics
+            if vs:
+                with torch.no_grad():
+                    w1 = torch.matmul(torch.abs(model.generator.gen2.weight.data),
+                                    torch.abs(model.generator.gen1.weight.data))
+                    w2 = torch.matmul(torch.abs(model.generator.gen3.weight.data), w1)
+                    w3 = torch.matmul(torch.abs(model.generator.gen4.weight.data), w2)
+                    print("Auxiliary signal:",
+                          torch.round(w3.view(-1)[:model.p_aux][:model.p],
+                                      decimals=2))
+                    print("X signal:",
+                          torch.round(w3.view(-1)[model.p_aux:][:model.p],
+                                      decimals=2))
+                    print("VS start:", model.selected,
+                          "Number of signals:", model.vs_Xidx.sum().item())
