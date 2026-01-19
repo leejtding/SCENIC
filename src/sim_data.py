@@ -150,7 +150,7 @@ def f_x(x, r):
 
 
 # PH
-def surv_ph_cond(t, x, r = 0.5, lambda_=0.5):
+def surv_ph_cond(t, x, r = 0.7, lambda_=0.5):
     """
     Conditional survival function for PH model.
 
@@ -172,7 +172,7 @@ def surv_ph_cond(t, x, r = 0.5, lambda_=0.5):
     """
     return np.exp(-lambda_ * np.exp(f_x(x, r)) * np.asarray(t))
 
-def sinv_ph_cond(u, x, r = 0.5, lambda_=0.5):
+def sinv_ph_cond(u, x, r = 0.7, lambda_=0.5):
     """
     Inverse conditional CDF for PH model.
 
@@ -238,7 +238,7 @@ def sinv_po_cond(u, x, r = 0.5):
 
 
 # AFT (log-normal)
-def surv_aft_cond(t, x, r = 0.5):
+def surv_aft_cond(t, x, r = 0.6):
     """
     Conditional survival function for AFT model.
 
@@ -258,7 +258,7 @@ def surv_aft_cond(t, x, r = 0.5):
     """
     return 1 - norm.cdf(np.log(np.asarray(t)) + f_x(x, r))
 
-def sinv_aft_cond(u, x, r = 0.5):
+def sinv_aft_cond(u, x, r = 0.6):
     """
     Inverse conditional CDF for AFT model.
 
@@ -321,7 +321,7 @@ def gen_right_cens(n, tau):
     return np.vstack([U, np.full(n, np.inf)])
 
 
-def gen_int_cens(t, c, d, k):
+def gen_int_cens(t, c, d, k, p = 1):
     """
     Generate inspection intervals for interval censoring.
 
@@ -335,16 +335,32 @@ def gen_int_cens(t, c, d, k):
         Random offset range.
     k : int
         Number of inspection intervals.
+    p : float
+        Attendance probability at each inspection time.
 
     Returns
     -------
     tuple of float
         (left_bound, right_bound) interval around event time.
     """
+    # First visit
     u1 = np.random.uniform(0, d)
-    uh = [u1 + h * c + np.random.uniform(0, d) for h in range(1, k)]
-    schedule = np.array([0] + [u1] + uh + [np.inf], dtype=float)
+
+    # Subsequent visits
+    uh = np.array([u1] + [u1 + h * c + np.random.uniform(0, d)
+                          for h in range(1, k)])
+    uh = np.sort(uh)
+
+    # Attended visits
+    uh_attend = [uh_i for uh_i in uh if np.random.rand() < p]
+    if len(uh_attend) == 0:
+        schedule = np.array([0, np.inf], dtype=float)
+    else:
+        schedule = np.array([0] + uh_attend + [np.inf], dtype=float)
+
+    # Find interval that contains t
     idx = np.searchsorted(schedule, t, side="right") - 1
+    idx = max(0, min(idx, len(schedule) - 2))
     return float(schedule[idx]), float(schedule[idx + 1])
 
 
@@ -384,7 +400,7 @@ def convert_lr(t, cens):
 ### Simulate data ###
 
 def sim_ic_marg(n_lc=0, n_rc=0, n_ic=0, n_uc=0, tau_lc=1.0, tau_rc=50.0,
-                c_ic=5.0, d_ic=5.0, k_ic=30, sim_model="PH", lambda_=0.5,
+                c_ic=5.0, d_ic=5.0, k_ic=30, p_ic=1, sim_model="PH", lambda_=0.5,
                 seed=None):
     """
     Simulate marginally distributed survival data under censoring.
@@ -395,7 +411,7 @@ def sim_ic_marg(n_lc=0, n_rc=0, n_ic=0, n_uc=0, tau_lc=1.0, tau_rc=50.0,
         Number of left-, right-, interval-, and uncensored observations.
     tau_lc, tau_rc : float
         Censoring bounds for left and right censoring.
-    c_ic, d_ic, k_ic : float or int
+    c_ic, d_ic, k_ic, p_ic : float or int
         Parameters controlling interval-censoring.
     sim_model : {"PH", "PO", "AFT"}
         Model type for simulation.
@@ -431,7 +447,7 @@ def sim_ic_marg(n_lc=0, n_rc=0, n_ic=0, n_uc=0, tau_lc=1.0, tau_rc=50.0,
 
     # Interval-censored
     for i in range(n_ic):
-        l, r = gen_int_cens(sim_t_ac[i], c_ic, d_ic, k_ic)
+        l, r = gen_int_cens(sim_t_ac[i], c_ic, d_ic, k_ic, p_ic)
         res = convert_lr(sim_t_ac[i], (l, r))
         sim_t.append(sim_t_ac[i])
         sim_l.append(res.l)
@@ -468,8 +484,8 @@ def sim_ic_marg(n_lc=0, n_rc=0, n_ic=0, n_uc=0, tau_lc=1.0, tau_rc=50.0,
 
 
 def sim_ic_cond(n_lc=0, n_rc=0, n_ic=0, n_uc=0, p_cov=2, r_cov=0.5, tau_lc=5.0,
-                tau_rc=50.0, c_ic=5.0, d_ic=5.0, k_ic=20, sim_model="PH",
-                lambda_=0.5, seed=3):
+                tau_rc=50.0, c_ic=5.0, d_ic=5.0, k_ic=20, p_ic = 1,
+                sim_model="PH", lambda_=0.5, seed=3):
     """
     Simulate conditional survival data given covariates.
 
@@ -481,7 +497,7 @@ def sim_ic_cond(n_lc=0, n_rc=0, n_ic=0, n_uc=0, p_cov=2, r_cov=0.5, tau_lc=5.0,
         Number of covariates.
     r_cov : float
         Covariate effect scale.
-    tau_lc, tau_rc, c_ic, d_ic, k_ic : float or int
+    tau_lc, tau_rc, c_ic, d_ic, k_ic, p_ic: float or int
         Parameters controlling censoring schedule.
     sim_model : {"PH", "PO", "AFT"}
         Model type for simulation.
@@ -520,7 +536,7 @@ def sim_ic_cond(n_lc=0, n_rc=0, n_ic=0, n_uc=0, p_cov=2, r_cov=0.5, tau_lc=5.0,
 
     # Interval-censored
     for i in range(n_ic):
-        l, r = gen_int_cens(sim_t_ac[i], c_ic, d_ic, k_ic)
+        l, r = gen_int_cens(sim_t_ac[i], c_ic, d_ic, k_ic, p_ic)
         res = convert_lr(sim_t_ac[i], (l, r))
         sim_t.append(sim_t_ac[i])
         sim_l.append(res.l)
@@ -562,5 +578,6 @@ def sim_ic_cond(n_lc=0, n_rc=0, n_ic=0, n_uc=0, p_cov=2, r_cov=0.5, tau_lc=5.0,
 
 ### Example usage ###
 if __name__ == "__main__":
-    df = sim_ic_cond(n_lc=10, n_rc=0, n_ic=0, n_uc=0, model=1)
+    df = sim_ic_cond(n_lc=0, n_rc=0, n_ic=0, n_uc=0, sim_model="PH",
+                     lambda_=0.5, seed=3)
     print(df.head())

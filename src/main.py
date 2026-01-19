@@ -17,6 +17,13 @@ main()
 """
 
 from __future__ import annotations
+import os
+import json
+import random
+import platform
+import numpy as np
+from datetime import datetime
+
 import argparse
 import time
 from tracemalloc import start
@@ -61,6 +68,8 @@ def parse_args():
                    help="Right interval-censoring threshold")
     p.add_argument("--k_ic", type=int, default=20,
                    help="Number of interval-censored samples")
+    p.add_argument("--p_ic", type=float, default=0.5,
+                   help="Proportion of interval-censored samples")
     p.add_argument("--sim_model", type=str, default="PH",
                    help="Data generating process model")
     p.add_argument("--lambda_", type=float, default=0.1,
@@ -81,10 +90,10 @@ def parse_args():
                    help="Device to run the model on")
     p.add_argument("--seed", type=int, default=3,
                    help="Random seed for reproducibility")
-    p.add_argument("--n_aux", type=int, default=400,
-                   help="Number of auxiliary features")
+    p.add_argument("--n_aux", type=int, default=500,
+                   help="Number of auxiliary variables")
     p.add_argument("--p_aux", type=int, default=5,
-                   help="Number of auxiliary features")
+                   help="Dimension of auxiliary variables")
     p.add_argument("--batch_size", type=int, default=5,
                    help="Batch size for training")
     p.add_argument("--train_size", type=int, default=100,
@@ -132,7 +141,7 @@ def main():
     ic_df = sim_ic_cond(n_lc=args.n_lc, n_rc=args.n_rc, n_ic=args.n_ic,
                         n_uc=args.n_uc, p_cov=args.p_cov, r_cov=args.r_cov,
                         tau_lc=args.tau_lc, tau_rc=args.tau_rc, c_ic=args.c_ic,
-                        d_ic=args.d_ic, k_ic=args.k_ic,
+                        d_ic=args.d_ic, k_ic=args.k_ic, p_ic = args.p_ic,
                         sim_model=args.sim_model, lambda_=args.lambda_,
                         seed=args.seed)
     l = torch.tensor(ic_df["l"])
@@ -141,8 +150,8 @@ def main():
 
     # Initialize model
     scenic = SCENIC(l=l, r=r, X=X, n_aux=args.n_aux, p_aux=args.p_aux,
-                    batch_size=args.batch_size, device=args.device,
-                    temp=args.temp, temp_decay=args.temp_decay,
+                    train_size = args.train_size, batch_size=args.batch_size,
+                    device=args.device, temp=args.temp, temp_decay=args.temp_decay,
                     gen_hidden=args.gen_hidden, phi_hidden=args.phi_hidden,
                     gen_lr=args.gen_lr, phi_lr=args.phi_lr)
     

@@ -54,34 +54,41 @@ def print_results(model, epoch, sim_model = "PH", n_plot = 6,
 
     with torch.no_grad():
         # Create time grids for plotting
-        time_grid = torch.linspace(0, ub_plot, steps=steps_plot, dtype=torch.float32).view(steps_plot, 1)
+        time_grid = torch.linspace(0, ub_plot, steps=steps_plot, dtype=torch.float).view(steps_plot, 1)
         print(f"Epoch: {epoch}, Generator Loss: {model.generator_loss:.4f}")
 
-        fig, axs = plt.subplots(ncols=2, nrows=1, figsize=(16, 4))
-        axs[0].set_title('True conditional survival functions')
-        for s in range(n_plot):
-            if sim_model == "PH":
-                # For PH: True survival function
-                surv_time = surv_ph_cond(time_grid.view(-1).numpy(), model.X[s, :].cpu().numpy())
-                axs[0].plot(time_grid.view(-1).numpy(), surv_time, ls="--", label=f'Subject {s}')
-            elif sim_model == "PO":
-                # For PO: True survival function
-                surv_time = surv_po_cond(time_grid.view(-1).numpy(), model.X[s, :].cpu().numpy())
-                axs[0].plot(time_grid.view(-1).numpy(), surv_time, ls="--", label=f'Subject {s}')
+        if n_plot > 0:
+            n_plot = min(n_plot, model.X.size(0))
+            fig, axs = plt.subplots(ncols=2, nrows=1, figsize=(16, 4))
+            axs[0].set_title('True conditional survival functions')
+            for s in range(n_plot):
+                if sim_model == "PH":
+                    # For PH: True survival function
+                    surv_time = surv_ph_cond(time_grid.view(-1).numpy(),
+                                             model.X[s, :].cpu().numpy())
+                    axs[0].plot(time_grid.view(-1).numpy(), surv_time, ls="--",
+                                label=f'Subject {s}')
+                elif sim_model == "PO":
+                    # For PO: True survival function
+                    surv_time = surv_po_cond(time_grid.view(-1).numpy(),
+                                             model.X[s, :].cpu().numpy())
+                    axs[0].plot(time_grid.view(-1).numpy(), surv_time, ls="--",
+                                label=f'Subject {s}')
 
-        axs[0].legend()
+            axs[0].legend()
 
-        axs[1].set_title('Estimated conditional survival functions from SCENIC')
-        for s in range(n_plot):
-            grid_size = time_grid.size(0)
-            X_plot = model.X[s, :].unsqueeze(0).repeat(n_gen, 1).to(model.device)
-            U_plot = 2 * torch.rand(n_gen, model.p_aux, device=model.device) - 1
-            gen_plot = model.generator(U_plot, X_plot).view(-1).detach().cpu()
-            time_plot = (gen_plot.repeat(grid_size, 1) > time_grid).sum(dim=1) / n_gen
-            axs[1].plot(time_grid.numpy(), time_plot.numpy(), ls="--", label=f'Subject {s}')
-        axs[1].legend()
+            axs[1].set_title('Estimated conditional survival functions from SCENIC')
+            for s in range(n_plot):
+                grid_size = time_grid.size(0)
+                X_plot = model.X[s, :].unsqueeze(0).repeat(n_gen, 1).to(model.device)
+                U_plot = 2 * torch.rand(n_gen, model.p_aux, device=model.device) - 1
+                gen_plot = model.generator(U_plot, X_plot).view(-1).detach().cpu()
+                time_plot = (gen_plot.repeat(grid_size, 1) > time_grid).sum(dim=1) / n_gen
+                axs[1].plot(time_grid.numpy(), time_plot.numpy(), ls="--",
+                            label=f'Subject {s}')
+            axs[1].legend()
 
-        filename = f"plot_epoch_{epoch:04d}.png"
-        fig.savefig(os.path.join(save_dir, filename))
-        plt.show()
-        plt.clf()
+            filename = f"plot_epoch_{epoch:04d}.png"
+            fig.savefig(os.path.join(save_dir, filename))
+            plt.show()
+            plt.clf()

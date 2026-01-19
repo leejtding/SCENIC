@@ -185,7 +185,7 @@ class SCENIC(nn.Module):
         r : torch.Tensor,
         X : torch.Tensor,
         device : str = 'cpu',
-        n_aux: int = 400,
+        n_aux: int = 500,
         p_aux: int = 5,
         batch_size: int = 5,
         train_size: int = 100,
