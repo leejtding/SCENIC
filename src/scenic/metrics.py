@@ -17,7 +17,7 @@ from typing import Dict, Tuple
 import numpy as np
 import torch
 
-from sim_data import surv_ph_cond, surv_po_cond, surv_aft_cond
+from scenic.sim_data import surv_ph_cond, surv_po_cond, surv_aft_cond
 
 
 def true_survival(sim_model: str, t: np.ndarray, x: np.ndarray) -> np.ndarray:
@@ -127,7 +127,7 @@ def qq_data(
     q = np.linspace(0.01, 0.99, 99)
 
     # Import locally to avoid circular imports.
-    from sim_data import sinv_ph_cond, sinv_po_cond, sinv_aft_cond
+    from scenic.sim_data import sinv_ph_cond, sinv_po_cond, sinv_aft_cond
 
     if sim_model == "PH":
         true_q = sinv_ph_cond(q, np.repeat(x_test[None, :], len(q), axis=0))

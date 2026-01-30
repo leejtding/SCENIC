@@ -29,10 +29,10 @@ import time
 from tracemalloc import start
 import torch
 
-from models import *
-from train import *
-from sim_data import *
-from print_results import *
+from scenic.models import *
+from scenic.train import *
+from scenic.sim_data import *
+from scenic.print_results import *
 
 def parse_args():
     """

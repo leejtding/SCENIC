@@ -15,7 +15,7 @@ from __future__ import annotations
 import torch
 import torch.nn as nn
 
-from loss import *
+from scenic.loss import *
 
 class generator(nn.Module):
     """

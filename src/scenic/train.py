@@ -12,8 +12,8 @@ import torch.nn as nn
 import numpy as np
 import random
 
-from models import SCENIC
-from print_results import print_results
+from scenic.models import SCENIC
+from scenic.print_results import print_results
 
 def train_epoch(model, phi_steps: int = 1, gen_steps: int = 1):
     """

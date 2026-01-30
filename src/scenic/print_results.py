@@ -17,7 +17,7 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 
-from sim_data import *
+from scenic.sim_data import *
 
 def print_results(model, epoch, sim_model = "PH", n_plot = 6,
                   ub_plot = 50, steps_plot = 500, n_gen = 2000):
@@ -49,15 +49,15 @@ def print_results(model, epoch, sim_model = "PH", n_plot = 6,
     - Estimated curves are derived from the generator outputs.
     """
     # Plot true and estimated survival functions
-    save_dir = "../check_fig/"
-    os.makedirs(save_dir, exist_ok=True)
-
     with torch.no_grad():
         # Create time grids for plotting
         time_grid = torch.linspace(0, ub_plot, steps=steps_plot, dtype=torch.float).view(steps_plot, 1)
         print(f"Epoch: {epoch}, Generator Loss: {model.generator_loss:.4f}")
 
         if n_plot > 0:
+            save_dir = "../check_fig/"
+            os.makedirs(save_dir, exist_ok=True)
+
             n_plot = min(n_plot, model.X.size(0))
             fig, axs = plt.subplots(ncols=2, nrows=1, figsize=(16, 4))
             axs[0].set_title('True conditional survival functions')
